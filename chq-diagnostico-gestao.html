@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHQ - Diagnóstico de Gestão</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #F4E4A8 0%, #FDF8F0 100%);
+            min-height: 100vh;
+        }
+        
+        .chq-gold { color: #C8922A; }
+        .chq-red { color: #D71920; }
+        .chq-brown { color: #2C1505; }
+        .bg-chq-gold { background-color: #C8922A; }
+        .bg-chq-red { background-color: #D71920; }
+        .bg-chq-cream { background-color: #FDF8F0; }
+        .border-chq-gold { border-color: #C8922A; }
+        
+        .section {
+            display: none;
+        }
+        
+        .section.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .card {
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+            transform: translateY(-2px);
+        }
+        
+        .question-card {
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            border-left: 4px solid #C8922A;
+        }
+        
+        .scale-buttons {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .scale-btn {
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .scale-btn:hover {
+            border-color: #C8922A;
+            color: #C8922A;
+        }
+        
+        .scale-btn.active {
+            background: #C8922A;
+            color: white;
+            border-color: #C8922A;
+        }
+        
+        .score-badge {
+            font-size: 48px;
+            font-weight: 900;
+            text-align: center;
+        }
+        
+        .dimension-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .dimension-item:last-child {
+            border-bottom: none;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            flex: 1;
+            margin: 0 12px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #C8922A;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .action-item {
+            background: #fef3c7;
+            border-left: 4px solid #D71920;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .action-priority {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .priority-critica {
+            background: #fecaca;
+            color: #991b1b;
+        }
+        
+        .priority-alta {
+            background: #fed7aa;
+            color: #92400e;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background: #D71920;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #a8131a;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(215, 25, 32, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #C8922A;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #a0721f;
+            transform: translateY(-2px);
+        }
+        
+        .btn-outline {
+            background: white;
+            color: #C8922A;
+            border: 2px solid #C8922A;
+        }
+        
+        .btn-outline:hover {
+            background: #FDF8F0;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #C8922A;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .logo-container {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .logo-text {
+            font-size: 28px;
+            font-weight: 900;
+            margin-bottom: 8px;
+        }
+        
+        .logo-subtitle {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #2c1505;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #C8922A;
+            box-shadow: 0 0 0 3px rgba(200, 146, 42, 0.1);
+        }
+        
+        @media (max-width: 768px) {
+            .score-badge { font-size: 36px; }
+            .scale-buttons { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+            .scale-btn { padding: 8px; font-size: 12px; }
+            .btn { padding: 10px 20px; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- HOME -->
+    <div id="home" class="section active">
+        <div class="min-h-screen flex items-center justify-center p-4">
+            <div class="card bg-white max-w-md w-full">
+                <div class="p-12">
+                    <div class="logo-container">
+                        <div class="logo-text chq-red">CHQ</div>
+                        <div class="logo-subtitle">Chiquinho Sorvetes</div>
+                    </div>
+                    <h1 class="text-3xl font-900 chq-brown text-center mb-2">Diagnóstico de Gestão</h1>
+                    <p class="text-center text-gray-600 mb-8 text-sm">Avalie sua liderança, gestão e operação em 5 minutos</p>
+                    <button onclick="goToSection('identification')" class="btn btn-primary w-full mb-4">Iniciar Avaliação</button>
+                    <p class="text-center text-xs text-gray-500">Sem login. Seus dados são salvos automaticamente.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IDENTIFICATION -->
+    <div id="identification" class="section">
+        <div class="min-h-screen flex items-center justify-center p-4 py-8">
+            <div class="card bg-white max-w-2xl w-full">
+                <div class="p-8">
+                    <h2 class="text-2xl font-bold chq-brown mb-6">Quem é você?</h2>
+                    
+                    <div class="form-group">
+                        <label>Nome do Respondente *</label>
+                        <input type="text" id="name" placeholder="Ex: João Silva" required>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label>Cargo *</label>
+                            <select id="position" required>
+                                <option value="">Selecione...</option>
+                                <option value="franqueado">Franqueado</option>
+                                <option value="gerente">Gerente</option>
+                                <option value="coordenador">Coordenador</option>
+                                <option value="supervisor">Supervisor</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Unidade / Loja *</label>
+                            <input type="text" id="unit" placeholder="Ex: Guarulhos 01" required>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label>Cidade *</label>
+                            <input type="text" id="city" placeholder="Ex: São Paulo" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Data *</label>
+                            <input type="date" id="date" required>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3 mt-8">
+                        <button onclick="goToSection('home')" class="btn btn-outline flex-1">Voltar</button>
+                        <button onclick="startQuestionnaire()" class="btn btn-primary flex-1">Continuar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUESTIONNAIRE -->
+    <div id="questionnaire" class="section">
+        <div class="min-h-screen p-4 py-8">
+            <div class="max-w-3xl mx-auto">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-2xl font-bold chq-brown">Questionário</h2>
+                    <div class="text-sm text-gray-500">
+                        <span id="progress-text">0/16</span>
+                    </div>
+                </div>
+
+                <div class="w-full bg-gray-200 rounded-full h-3 mb-8">
+                    <div id="progress-bar" class="bg-chq-gold h-3 rounded-full" style="width: 0%; transition: width 0.3s;"></div>
+                </div>
+
+                <div id="questions-container"></div>
+
+                <div class="flex gap-3 mt-8 max-w-3xl mx-auto">
+                    <button onclick="goToSection('identification')" class="btn btn-outline flex-1">Voltar</button>
+                    <button onclick="submitQuestionnaire()" class="btn btn-primary flex-1">Ver Resultados</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results" class="section">
+        <div class="min-h-screen p-4 py-8 bg-gradient-to-b from-transparent to-gray-50">
+            <div class="max-w-5xl mx-auto">
+                <!-- Header com Score Principal -->
+                <div class="card bg-white mb-8">
+                    <div class="p-8">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div class="md:col-span-1">
+                                <div class="text-center">
+                                    <div class="score-badge" id="overall-score">0</div>
+                                    <div class="text-xl font-bold chq-brown mt-2">Pontuação Geral</div>
+                                    <div id="overall-classification" class="text-sm font-600 mt-2" style="padding: 4px 12px; border-radius: 20px; display: inline-block;"></div>
+                                </div>
+                            </div>
+                            <div class="md:col-span-2">
+                                <div id="radar-container" style="position: relative; height: 300px;">
+                                    <canvas id="radarChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pontuação por Dimensão -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="card bg-white p-8">
+                        <h3 class="text-lg font-bold chq-brown mb-6">Dimensões</h3>
+                        <div id="dimensions-list"></div>
+                    </div>
+
+                    <div class="card bg-white p-8">
+                        <h3 class="text-lg font-bold chq-brown mb-6">Distribuição</h3>
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="barChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Itens não atendidos -->
+                <div class="card bg-white p-8 mb-8">
+                    <h3 class="text-lg font-bold chq-brown mb-6">Itens não totalmente atendidos</h3>
+                    <div id="unmet-items" class="space-y-3"></div>
+                </div>
+
+                <!-- Plano de Ação -->
+                <div class="card bg-white p-8 mb-8">
+                    <h3 class="text-lg font-bold chq-brown mb-6">📋 Plano de Ação Personalizado</h3>
+                    <div id="action-plan" class="space-y-3"></div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="flex gap-3 flex-wrap justify-center mb-8">
+                    <button onclick="exportPDF()" class="btn btn-primary">📄 Baixar Relatório PDF</button>
+                    <button onclick="copyForSheets()" class="btn btn-secondary">📊 Copiar para Google Sheets</button>
+                    <button onclick="goToSection('home')" class="btn btn-outline">↻ Nova Avaliação</button>
+                </div>
+
+                <!-- Informações de Salvamento -->
+                <div class="card bg-blue-50 p-6 text-center border-l-4 border-blue-500">
+                    <p class="text-sm text-gray-700 mb-2">
+                        <strong>ID da Avaliação:</strong> <span id="assessment-id" class="font-mono font-bold chq-red">-</span>
+                    </p>
+                    <p class="text-xs text-gray-500">Seus dados foram salvos automaticamente no Firebase.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Carregamento -->
+    <div id="loadingModal" class="modal">
+        <div class="modal-content text-center">
+            <div class="loading mx-auto mb-4"></div>
+            <p class="text-gray-600">Salvando avaliação...</p>
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURAÇÃO FIREBASE =====
+        const firebaseConfig = {
+            apiKey: "AIzaSyDXioo5R-GSj-oWCJu0TLJmGhX54ybE_vE",
+            authDomain: "chq-diagnostico.firebaseapp.com",
+            projectId: "chq-diagnostico",
+            storageBucket: "chq-diagnostico.firebasestorage.app",
+            messagingSenderId: "496461128426",
+            appId: "1:496461128426:web:81351dcecd1f3df1842d93",
+            measurementId: "G-HPTQC3TQE9"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // ===== CATEGORIAS E PERGUNTAS =====
+        const CATEGORIES = {
+            lideranca: {
+                label: "Liderança",
+                icon: "👥",
+                color: "#D71920",
+                questions: [
+                    { id: "l1", text: "Tenho reuniões individuais semanais com minha equipe", weight: 1.0 },
+                    { id: "l2", text: "Dou feedback estruturado pelo menos quinzenalmente", weight: 1.0 },
+                    { id: "l3", text: "Reconheço conquistas da equipe regularmente", weight: 0.8 },
+                    { id: "l4", text: "Conheço os objetivos profissionais dos colaboradores", weight: 0.9 }
+                ]
+            },
+            gestao: {
+                label: "Gestão",
+                icon: "📊",
+                color: "#C8922A",
+                questions: [
+                    { id: "g1", text: "Minha equipe conhece claramente as metas", weight: 1.0 },
+                    { id: "g2", text: "Os indicadores são acompanhados frequentemente", weight: 1.0 },
+                    { id: "g3", text: "Compartilho resultados com transparência", weight: 0.9 },
+                    { id: "g4", text: "Tomo decisões baseadas em dados", weight: 0.95 }
+                ]
+            },
+            desenvolvimento: {
+                label: "Desenvolvimento",
+                icon: "🎓",
+                color: "#1888A0",
+                questions: [
+                    { id: "d1", text: "Invisto em treinamentos periódicos", weight: 0.95 },
+                    { id: "d2", text: "Tenho plano de desenvolvimento para colaboradores", weight: 0.95 },
+                    { id: "d3", text: "Identifico talentos internos", weight: 0.85 }
+                ]
+            },
+            comunicacao: {
+                label: "Comunicação",
+                icon: "💬",
+                color: "#5C3010",
+                questions: [
+                    { id: "c1", text: "Utilizo ferramentas digitais para comunicação", weight: 0.8 },
+                    { id: "c2", text: "Promovo um ambiente aberto para sugestões", weight: 0.9 }
+                ]
+            },
+            operacao: {
+                label: "Operação",
+                icon: "⚙️",
+                color: "#A0A020",
+                questions: [
+                    { id: "o1", text: "Realizo checklists operacionais regularmente", weight: 1.0 },
+                    { id: "o2", text: "Acompanho indicadores (faturamento, ticket médio, satisfação)", weight: 1.0 }
+                ]
+            }
+        };
+
+        // ===== VARIÁVEIS GLOBAIS =====
+        let currentResponses = {};
+        let currentAssessmentId = null;
+        let chartInstances = {};
+
+        // ===== INICIALIZAÇÃO =====
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('date').valueAsDate = new Date();
+        });
+
+        // ===== NAVEGAÇÃO =====
+        function goToSection(section) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(section).classList.add('active');
+            window.scrollTo(0, 0);
+        }
+
+        // ===== VALIDAÇÃO E INÍCIO DO QUESTIONÁRIO =====
+        function startQuestionnaire() {
+            const name = document.getElementById('name').value.trim();
+            const position = document.getElementById('position').value;
+            const unit = document.getElementById('unit').value.trim();
+            const city = document.getElementById('city').value.trim();
+
+            if (!name || !position || !unit || !city) {
+                alert('Por favor, preencha todos os campos obrigatórios.');
+                return;
+            }
+
+            renderQuestionnaire();
+            goToSection('questionnaire');
+        }
+
+        // ===== RENDERIZAR QUESTIONÁRIO =====
+        function renderQuestionnaire() {
+            const container = document.getElementById('questions-container');
+            container.innerHTML = '';
+            let totalQuestions = 0;
+
+            Object.entries(CATEGORIES).forEach(([catKey, category]) => {
+                const catDiv = document.createElement('div');
+                catDiv.className = 'card bg-white p-8 mb-6';
+                catDiv.innerHTML = `<h3 class="text-lg font-bold mb-6" style="color: ${category.color};">${category.icon} ${category.label}</h3>`;
+
+                category.questions.forEach(q => {
+                    totalQuestions++;
+                    const qDiv = document.createElement('div');
+                    qDiv.className = 'question-card';
+                    qDiv.innerHTML = `
+                        <p class="font-600 text-gray-800 mb-3">${q.text}</p>
+                        <div class="scale-buttons">
+                            ${[1, 2, 3, 4, 5].map(val => `
+                                <button class="scale-btn" onclick="setResponse('${q.id}', ${val})" data-value="${val}">
+                                    ${val}
+                                </button>
+                            `).join('')}
+                        </div>
+                    `;
+                    catDiv.querySelector('h3').parentElement.appendChild(qDiv);
+                });
+
+                container.appendChild(catDiv);
+            });
+
+            // Atualizar total
+            document.getElementById('questions-container').dataset.total = totalQuestions;
+        }
+
+        // ===== SETAR RESPOSTA =====
+        function setResponse(questionId, value) {
+            currentResponses[questionId] = value;
+
+            // Atualizar visual do botão
+            document.querySelectorAll(`[data-value]`).forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[onclick*="${questionId}"][data-value="${value}"]`).classList.add('active');
+
+            // Atualizar progresso
+            updateProgress();
+        }
+
+        // ===== ATUALIZAR PROGRESSO =====
+        function updateProgress() {
+            const total = Object.values(CATEGORIES).reduce((sum, cat) => sum + cat.questions.length, 0);
+            const answered = Object.keys(currentResponses).length;
+            document.getElementById('progress-text').textContent = `${answered}/${total}`;
+            document.getElementById('progress-bar').style.width = `${(answered / total) * 100}%`;
+        }
+
+        // ===== SUBMETER QUESTIONÁRIO =====
+        function submitQuestionnaire() {
+            const total = Object.values(CATEGORIES).reduce((sum, cat) => sum + cat.questions.length, 0);
+            const answered = Object.keys(currentResponses).length;
+
+            if (answered < total) {
+                alert(`Por favor, responda todas as perguntas. Respondidas: ${answered}/${total}`);
+                return;
+            }
+
+            showLoadingModal(true);
+            calculateAndDisplay();
+            saveToFirebase();
+        }
+
+        // ===== CALCULAR SCORE =====
+        function calculateScore() {
+            let totalScore = 0;
+            let totalWeight = 0;
+            const categoryScores = {};
+
+            Object.entries(CATEGORIES).forEach(([catKey, category]) => {
+                let catScore = 0;
+                let catWeight = 0;
+
+                category.questions.forEach(q => {
+                    const response = currentResponses[q.id] || 0;
+                    catScore += response * q.weight;
+                    catWeight += 5 * q.weight;
+                });
+
+                const percentage = catWeight > 0 ? (catScore / catWeight) * 100 : 0;
+                categoryScores[catKey] = {
+                    label: category.label,
+                    score: percentage,
+                    icon: category.icon,
+                    color: category.color
+                };
+
+                totalScore += catScore;
+                totalWeight += catWeight;
+            });
+
+            const overallScore = totalWeight > 0 ? (totalScore / totalWeight) * 100 : 0;
+
+            return {
+                overall: Math.round(overallScore),
+                categories: categoryScores
+            };
+        }
+
+        // ===== CLASSIFICAÇÃO =====
+        function getClassification(score) {
+            if (score >= 90) return { level: "🌟 Excelência", color: "#22c55e", bg: "#dcfce7" };
+            if (score >= 75) return { level: "✅ Muito Bom", color: "#3b82f6", bg: "#dbeafe" };
+            if (score >= 60) return { level: "👍 Bom", color: "#f59e0b", bg: "#fef3c7" };
+            if (score >= 40) return { level: "⚠️ Atenção", color: "#ef4444", bg: "#fee2e2" };
+            return { level: "🚨 Crítico", color: "#991b1b", bg: "#fecaca" };
+        }
+
+        // ===== PLANO DE AÇÃO AUTOMÁTICO =====
+        function generateActionPlan(responses, categoryScores) {
+            const actions = [];
+            const thresholdPercentage = 75;
+
+            const triggers = {
+                lideranca: [
+                    { condition: responses.l1 < 4, action: "Implantar reuniões 1:1 semanais com toda equipe (30 min)", priority: "Alta" },
+                    { condition: responses.l2 < 4, action: "Estruturar rotina de feedback quinzenal usando framework SBI", priority: "Alta" },
+                    { condition: responses.l3 < 4, action: "Criar programa de reconhecimento mensal (público + privado)", priority: "Alta" },
+                    { condition: responses.l4 < 4, action: "Mapear objetivos profissionais de cada colaborador em 30 dias", priority: "Alta" }
+                ],
+                gestao: [
+                    { condition: responses.g1 < 4, action: "Definir metas SMART para cada área até próximas 2 semanas", priority: "Crítica" },
+                    { condition: responses.g2 < 4, action: "Criar rotina de análise de indicadores (diária/semanal)", priority: "Crítica" },
+                    { condition: responses.g3 < 4, action: "Comunicar resultados em reunião coletiva semanal", priority: "Alta" },
+                    { condition: responses.g4 < 4, action: "Implementar dashboard de métricas acessível ao time", priority: "Alta" }
+                ],
+                desenvolvimento: [
+                    { condition: responses.d1 < 4, action: "Agendar 1 treinamento por trimestre no mínimo", priority: "Alta" },
+                    { condition: responses.d2 < 4, action: "Criar PDI para cada colaborador (objetivos 6 e 12 meses)", priority: "Alta" },
+                    { condition: responses.d3 < 4, action: "Identificar top 3 talentos para programa de sucessão", priority: "Alta" }
+                ],
+                comunicacao: [
+                    { condition: responses.c1 < 4, action: "Adotar ferramenta de comunicação digital (Slack, Teams, etc)", priority: "Alta" },
+                    { condition: responses.c2 < 4, action: "Instituir 'caixa de sugestões' digital ou física", priority: "Alta" }
+                ],
+                operacao: [
+                    { condition: responses.o1 < 4, action: "Criar checklist operacional diário/semanal e acompanhar", priority: "Crítica" },
+                    { condition: responses.o2 < 4, action: "Dashboard com KPIs principais (ticket, faturamento, NPS)", priority: "Crítica" }
+                ]
+            };
+
+            Object.entries(triggers).forEach(([catKey, catTriggers]) => {
+                catTriggers.forEach(trigger => {
+                    if (trigger.condition) {
+                        actions.push({
+                            category: categoryScores[catKey].label,
+                            action: trigger.action,
+                            priority: trigger.priority
+                        });
+                    }
+                });
+            });
+
+            return actions.sort((a, b) => {
+                const priorityOrder = { "Crítica": 0, "Alta": 1 };
+                return (priorityOrder[a.priority] || 999) - (priorityOrder[b.priority] || 999);
+            });
+        }
+
+        // ===== RENDERIZAR RESULTADOS =====
+        function calculateAndDisplay() {
+            const result = calculateScore();
+            const classification = getClassification(result.overall);
+            const actionPlan = generateActionPlan(currentResponses, result.categories);
+
+            // Score geral
+            document.getElementById('overall-score').textContent = result.overall;
+            const classDiv = document.getElementById('overall-classification');
+            classDiv.textContent = classification.level;
+            classDiv.style.background = classification.bg;
+            classDiv.style.color = classification.color;
+
+            // Dimensões
+            const dimensionsList = document.getElementById('dimensions-list');
+            dimensionsList.innerHTML = '';
+            Object.entries(result.categories).forEach(([key, cat]) => {
+                const dim = document.createElement('div');
+                dim.className = 'dimension-item';
+                dim.innerHTML = `
+                    <span class="font-600" style="color: ${cat.color};">${cat.icon} ${cat.label}</span>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${cat.score}%; background: ${cat.color};"></div>
+                    </div>
+                    <span class="font-900" style="color: ${cat.color}; min-width: 45px;">${Math.round(cat.score)}%</span>
+                `;
+                dimensionsList.appendChild(dim);
+            });
+
+            // Itens não atendidos
+            const unmetDiv = document.getElementById('unmet-items');
+            unmetDiv.innerHTML = '';
+            Object.entries(CATEGORIES).forEach(([catKey, category]) => {
+                category.questions.forEach(q => {
+                    const response = currentResponses[q.id];
+                    if (response < 4) {
+                        const item = document.createElement('div');
+                        item.className = 'text-sm text-gray-700';
+                        item.innerHTML = `<span style="color: ${category.color}; font-weight: 600;">${q.text}</span><br><small class="text-gray-500">Resposta: ${response}/5</small>`;
+                        unmetDiv.appendChild(item);
+                    }
+                });
+            });
+
+            // Plano de ação
+            const planDiv = document.getElementById('action-plan');
+            planDiv.innerHTML = '';
+            if (actionPlan.length === 0) {
+                planDiv.innerHTML = '<p class="text-green-700 text-center py-4">✅ Parabéns! Você está em dia com todas as dimensões.</p>';
+            } else {
+                actionPlan.forEach((action, idx) => {
+                    const actionEl = document.createElement('div');
+                    actionEl.className = 'action-item';
+                    actionEl.innerHTML = `
+                        <span class="action-priority ${action.priority === 'Crítica' ? 'priority-critica' : 'priority-alta'}">${action.priority}</span>
+                        <p class="font-600 text-gray-800 mt-2">${idx + 1}. ${action.action}</p>
+                        <p class="text-sm text-gray-600 mt-2">Categoria: <strong>${action.category}</strong></p>
+                    `;
+                    planDiv.appendChild(actionEl);
+                });
+            }
+
+            // Gráficos
+            renderCharts(result.categories);
+
+            goToSection('results');
+            showLoadingModal(false);
+        }
+
+        // ===== RENDERIZAR GRÁFICOS =====
+        function renderCharts(categoryScores) {
+            setTimeout(() => {
+                // Radar
+                const radarCtx = document.getElementById('radarChart').getContext('2d');
+                if (chartInstances.radar) chartInstances.radar.destroy();
+                chartInstances.radar = new Chart(radarCtx, {
+                    type: 'radar',
+                    data: {
+                        labels: Object.values(categoryScores).map(c => c.label),
+                        datasets: [{
+                            label: 'Pontuação (%)',
+                            data: Object.values(categoryScores).map(c => c.score),
+                            borderColor: '#C8922A',
+                            backgroundColor: 'rgba(200, 146, 42, 0.1)',
+                            pointBackgroundColor: '#D71920',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { stepSize: 20 }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+
+                // Barras
+                const barCtx = document.getElementById('barChart').getContext('2d');
+                if (chartInstances.bar) chartInstances.bar.destroy();
+                chartInstances.bar = new Chart(barCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: Object.values(categoryScores).map(c => c.label),
+                        datasets: [{
+                            label: 'Pontuação (%)',
+                            data: Object.values(categoryScores).map(c => c.score),
+                            backgroundColor: Object.values(categoryScores).map(c => c.color),
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                max: 100
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+            }, 100);
+        }
+
+        // ===== SALVAR NO FIREBASE =====
+        function saveToFirebase() {
+            const assessmentData = {
+                name: document.getElementById('name').value,
+                position: document.getElementById('position').value,
+                unit: document.getElementById('unit').value,
+                city: document.getElementById('city').value,
+                date: document.getElementById('date').value,
+                responses: currentResponses,
+                score: calculateScore(),
+                timestamp: new Date(),
+                sheetsSent: false
+            };
+
+            db.collection('assessments').add(assessmentData).then((docRef) => {
+                currentAssessmentId = docRef.id;
+                document.getElementById('assessment-id').textContent = docRef.id.substring(0, 12).toUpperCase();
+                console.log('Salvo em Firebase:', docRef.id);
+                
+                // Enviar para Google Sheets via Webhook
+                sendToGoogleSheets(assessmentData);
+            }).catch((error) => {
+                console.error('Erro ao salvar:', error);
+                alert('Erro ao salvar dados. Tente novamente.');
+            });
+        }
+
+        // ===== ENVIAR PARA GOOGLE SHEETS (VIA WEBHOOK) =====
+        function sendToGoogleSheets(data) {
+            // Este é o espaço para integração com Zapier/Make
+            // Você criará um webhook em Zapier que receberá estes dados
+            const webhookPayload = {
+                name: data.name,
+                position: data.position,
+                unit: data.unit,
+                city: data.city,
+                date: data.date,
+                overallScore: data.score.overall,
+                ...Object.fromEntries(
+                    Object.entries(data.score.categories).map(([key, cat]) => [
+                        `score_${key}`,
+                        Math.round(cat.score)
+                    ])
+                ),
+                timestamp: new Date().toISOString()
+            };
+
+            // Aqui você colocará a URL do webhook do Zapier
+            // Por enquanto, salvamos no localStorage como fallback
+            localStorage.setItem('lastSheetData', JSON.stringify(webhookPayload));
+            console.log('Dados preparados para Google Sheets:', webhookPayload);
+        }
+
+        // ===== COPIAR PARA GOOGLE SHEETS =====
+        function copyForSheets() {
+            const result = calculateScore();
+            const sheetData = {
+                "Nome": document.getElementById('name').value,
+                "Cargo": document.getElementById('position').value,
+                "Unidade": document.getElementById('unit').value,
+                "Cidade": document.getElementById('city').value,
+                "Data": document.getElementById('date').value,
+                "Score Geral": result.overall,
+                "Liderança": Math.round(result.categories.lideranca.score),
+                "Gestão": Math.round(result.categories.gestao.score),
+                "Desenvolvimento": Math.round(result.categories.desenvolvimento.score),
+                "Comunicação": Math.round(result.categories.comunicacao.score),
+                "Operação": Math.round(result.categories.operacao.score)
+            };
+
+            const csvContent = Object.keys(sheetData).map(key => `"${key}"`).join(",") + "\n" +
+                               Object.values(sheetData).map(val => `"${val}"`).join(",");
+
+            navigator.clipboard.writeText(csvContent).then(() => {
+                alert('✅ Dados copiados! Colar no Google Sheets com Ctrl+V');
+            }).catch(() => {
+                alert('Erro ao copiar. Tente novamente.');
+            });
+        }
+
+        // ===== EXPORTAR PDF =====
+        function exportPDF() {
+            const element = document.getElementById('results');
+            const opt = {
+                margin: 10,
+                filename: `Diagnostico_${document.getElementById('name').value}_${new Date().toISOString().split('T')[0]}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // ===== LOADING MODAL =====
+        function showLoadingModal(show) {
+            document.getElementById('loadingModal').className = show ? 'modal show' : 'modal';
+        }
+    </script>
+</body>
+</html>
